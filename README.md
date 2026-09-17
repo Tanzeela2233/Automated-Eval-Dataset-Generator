@@ -19,6 +19,8 @@ You provide a task or domain, choose the number of examples and difficulty, and 
 5. Visualizes evaluation scores.
 6. Exports the dataset as **JSONL** or **CSV**.
 
+🌐 **Live Demo:** [Automated Eval Dataset Generator](https://automated-eval-dataset-generator-msm6fja9ptragmmkuf4fhv.streamlit.app/) — Generate and evaluate AI evaluation datasets instantly.
+
 ## 🏗️ Architecture
 
 ```text
