@@ -1,0 +1,3 @@
+streamlit==1.49.1
+groq>=0.31.0
+pandas>=2.2.0
