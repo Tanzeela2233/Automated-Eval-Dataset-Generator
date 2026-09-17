@@ -7,9 +7,9 @@ from evaluator import evaluate_dataset
 from document import build_jsonl, build_csv
 
 
-# =========================================================
-# Page configuration
-# =========================================================
+# ============================================================
+# PAGE CONFIGURATION
+# ============================================================
 
 st.set_page_config(
     page_title="Automated Eval Dataset Generator",
@@ -18,9 +18,9 @@ st.set_page_config(
 )
 
 
-# =========================================================
-# Custom styling
-# =========================================================
+# ============================================================
+# CUSTOM CSS
+# ============================================================
 
 st.markdown(
     """
@@ -37,11 +37,16 @@ st.markdown(
         margin-bottom: 1.5rem;
     }
 
-    .card {
+    .metric-card {
         padding: 1rem;
         border-radius: 14px;
         border: 1px solid #e2e8f0;
         background: #f8fafc;
+    }
+
+    .score-label {
+        font-weight: 600;
+        margin-bottom: 0.2rem;
     }
     </style>
     """,
@@ -49,9 +54,9 @@ st.markdown(
 )
 
 
-# =========================================================
-# Header
-# =========================================================
+# ============================================================
+# HEADER
+# ============================================================
 
 st.markdown(
     '<div class="main-title">🧪 Automated Eval Dataset Generator</div>',
@@ -59,21 +64,20 @@ st.markdown(
 )
 
 st.markdown(
-    """
-    <div class="subtitle">
-    Generate evaluation datasets from a task description using
-    Groq-powered LLM generation and automatic quality checks.
-    </div>
-    """,
+    '<div class="subtitle">'
+    "Generate high-quality evaluation datasets from a task description "
+    "using Groq-powered LLM generation and automatic quality checks."
+    "</div>",
     unsafe_allow_html=True,
 )
 
 
-# =========================================================
-# Sidebar
-# =========================================================
+# ============================================================
+# SIDEBAR CONFIGURATION
+# ============================================================
 
 with st.sidebar:
+
     st.header("⚙️ Configuration")
 
     topic = st.text_input(
@@ -105,21 +109,18 @@ with st.sidebar:
     st.caption("Powered by Groq API")
     st.caption("Model: openai/gpt-oss-20b")
 
+    st.divider()
 
-# =========================================================
-# Generate button
-# =========================================================
-
-generate = st.button(
-    "🚀 Generate Evaluation Dataset",
-    type="primary",
-    use_container_width=True,
-)
+    generate = st.button(
+        "🚀 Generate Evaluation Dataset",
+        type="primary",
+        use_container_width=True,
+    )
 
 
-# =========================================================
-# Dataset generation
-# =========================================================
+# ============================================================
+# DATASET GENERATION
+# ============================================================
 
 if generate:
 
@@ -127,75 +128,66 @@ if generate:
         st.error("Please enter a task or domain.")
         st.stop()
 
-    # -----------------------------------------
-    # Step 1: Generate examples
-    # -----------------------------------------
+    # --------------------------------------------------------
+    # Generate dataset
+    # --------------------------------------------------------
 
     with st.spinner("Generating evaluation examples with Groq..."):
 
         try:
             rows = generate_dataset(
-                topic=topic,
-                num_examples=num_examples,
-                difficulty=difficulty,
+                topic,
+                num_examples,
+                difficulty,
             )
 
         except Exception as exc:
             st.error(f"Generation failed: {exc}")
             st.stop()
 
-    # Check generated data
-    if not rows:
-        st.error("No evaluation examples were generated.")
-        st.stop()
-
-    # -----------------------------------------
-    # Step 2: Evaluate examples
-    # -----------------------------------------
+    # --------------------------------------------------------
+    # Evaluate dataset
+    # --------------------------------------------------------
 
     with st.spinner("Evaluating generated examples..."):
 
         try:
             evaluated = evaluate_dataset(
-                rows=rows,
-                topic=topic,
+                rows,
+                topic,
             )
 
         except Exception as exc:
             st.error(f"Evaluation failed: {exc}")
             st.stop()
 
-    if not evaluated:
-        st.error("Evaluation returned no results.")
-        st.stop()
-
-    # -----------------------------------------
-    # Save to session state
-    # -----------------------------------------
+    # --------------------------------------------------------
+    # Store in session state
+    # --------------------------------------------------------
 
     st.session_state["dataset"] = evaluated
     st.session_state["topic"] = topic
     st.session_state["format"] = output_format
 
 
-# =========================================================
-# Display dataset
-# =========================================================
+# ============================================================
+# DISPLAY RESULTS
+# ============================================================
 
 if "dataset" in st.session_state:
 
     dataset = st.session_state["dataset"]
 
-    total = len(dataset)
+    # --------------------------------------------------------
+    # Calculate statistics
+    # --------------------------------------------------------
 
-    # -----------------------------------------
-    # Calculate metrics
-    # -----------------------------------------
+    total = len(dataset)
 
     passed = sum(
         1
         for row in dataset
-        if row.get("evaluation", {}).get("passed", False)
+        if row.get("evaluation", {}).get("passed")
     )
 
     scores = [
@@ -203,14 +195,26 @@ if "dataset" in st.session_state:
         for row in dataset
     ]
 
-    avg_score = sum(scores) / total if total else 0
+    avg_score = (
+        sum(scores) / total
+        if total
+        else 0
+    )
+
+    pass_rate = (
+        (passed / total) * 100
+        if total
+        else 0
+    )
 
 
-    # =====================================================
-    # Metrics
-    # =====================================================
+    # ========================================================
+    # METRICS
+    # ========================================================
 
-    c1, c2, c3 = st.columns(3)
+    st.subheader("📈 Dataset Summary")
+
+    c1, c2, c3, c4 = st.columns(4)
 
     c1.metric(
         "Examples",
@@ -227,58 +231,110 @@ if "dataset" in st.session_state:
         f"{avg_score:.1f}/10",
     )
 
+    c4.metric(
+        "Pass Rate",
+        f"{pass_rate:.0f}%",
+    )
 
-    # =====================================================
-    # Evaluation chart
-    # =====================================================
+
+    # ========================================================
+    # EVALUATION OVERVIEW
+    # ========================================================
 
     st.subheader("📊 Evaluation Overview")
 
-    chart_df = pd.DataFrame(
+    st.write("Individual evaluation scores:")
+
+    # --------------------------------------------------------
+    # Safe chart replacement
+    #
+    # We intentionally do NOT use st.bar_chart().
+    # This avoids the Altair compatibility issue on
+    # Streamlit Cloud / Python 3.14.
+    # --------------------------------------------------------
+
+    for i, score in enumerate(scores, 1):
+
+        col1, col2 = st.columns([1, 8])
+
+        with col1:
+            st.markdown(
+                f"**Example {i}**"
+            )
+
+        with col2:
+
+            progress_value = max(
+                0.0,
+                min(
+                    1.0,
+                    score / 10,
+                ),
+            )
+
+            st.progress(
+                progress_value,
+                text=f"Score: {score:.0f}/10",
+            )
+
+
+    # --------------------------------------------------------
+    # Score distribution summary
+    # --------------------------------------------------------
+
+    st.write("")
+
+    score_df = pd.DataFrame(
         {
-            "Example": list(range(1, total + 1)),
-            "Score": scores,
+            "Score": scores
         }
     )
 
-    chart_df = chart_df.set_index("Example")
+    score_counts = (
+        score_df["Score"]
+        .value_counts()
+        .sort_index()
+        .reset_index()
+    )
 
-    st.bar_chart(chart_df)
+    score_counts.columns = [
+        "Score",
+        "Number of Examples",
+    ]
+
+    st.write("**Score Distribution**")
+
+    st.dataframe(
+        score_counts,
+        use_container_width=True,
+        hide_index=True,
+    )
 
 
-    # =====================================================
-    # Dataset table
-    # =====================================================
+    # ========================================================
+    # GENERATED DATASET
+    # ========================================================
 
     st.subheader("🧾 Generated Dataset")
 
     display_rows = []
 
-    for i, row in enumerate(dataset, start=1):
+    for i, row in enumerate(dataset, 1):
 
-        evaluation = row.get("evaluation", {})
+        evaluation = row["evaluation"]
 
         display_rows.append(
             {
                 "ID": i,
-                "Input": row.get("input", ""),
-                "Expected Output": row.get(
-                    "expected_output",
-                    "",
-                ),
-                "Score": evaluation.get(
-                    "score",
-                    0,
-                ),
+                "Input": row["input"],
+                "Expected Output": row["expected_output"],
+                "Score": evaluation["score"],
                 "Passed": (
                     "✅"
-                    if evaluation.get("passed", False)
+                    if evaluation["passed"]
                     else "❌"
                 ),
-                "Reason": evaluation.get(
-                    "reason",
-                    "",
-                ),
+                "Reason": evaluation["reason"],
             }
         )
 
@@ -291,87 +347,73 @@ if "dataset" in st.session_state:
     )
 
 
-    # =====================================================
-    # Detailed evaluation
-    # =====================================================
+    # ========================================================
+    # DETAILED EVALUATION
+    # ========================================================
 
     st.subheader("🔎 Detailed Evaluation")
 
-    for i, row in enumerate(dataset, start=1):
+    for i, row in enumerate(dataset, 1):
 
-        evaluation = row.get(
-            "evaluation",
-            {},
+        evaluation = row["evaluation"]
+
+        status = (
+            "PASS"
+            if evaluation["passed"]
+            else "REVIEW"
         )
-
-        score = evaluation.get(
-            "score",
-            0,
-        )
-
-        passed_status = evaluation.get(
-            "passed",
-            False,
-        )
-
-        status = "PASS" if passed_status else "REVIEW"
 
         with st.expander(
-            f"Example {i} — {status} — {score}/10"
+            f"Example {i} — {status} — "
+            f"{evaluation['score']}/10"
         ):
 
-            st.write("**Input**")
+            st.markdown("### 📝 Input")
 
             st.write(
-                row.get(
-                    "input",
-                    "",
-                )
+                row["input"]
             )
 
-            st.write("**Expected output**")
+            st.markdown("### 🎯 Expected Output")
 
             st.write(
-                row.get(
-                    "expected_output",
-                    "",
-                )
+                row["expected_output"]
             )
 
-            st.write("**Evaluation**")
+            st.markdown("### 🧪 Evaluation")
 
             st.write(
-                evaluation.get(
-                    "reason",
-                    "No evaluation reason provided.",
-                )
+                evaluation["reason"]
             )
 
 
-    # =====================================================
-    # Download dataset
-    # =====================================================
+    # ========================================================
+    # DOWNLOAD DATASET
+    # ========================================================
 
-    st.subheader("📥 Download")
+    st.subheader("📥 Download Dataset")
 
-    selected_format = st.session_state.get(
-        "format",
-        "JSONL",
-    )
+    if st.session_state["format"] == "JSONL":
 
-    if selected_format == "JSONL":
+        data_bytes = build_jsonl(
+            dataset
+        )
 
-        data_bytes = build_jsonl(dataset)
-
-        file_name = "evaluation_dataset.jsonl"
+        file_name = (
+            "evaluation_dataset.jsonl"
+        )
 
         mime = "application/json"
 
     else:
 
-        data_bytes = build_csv(dataset)
+        data_bytes = build_csv(
+            dataset
+        )
 
-        file_name = "evaluation_dataset.csv"
+        file_name = (
+            "evaluation_dataset.csv"
+        )
 
         mime = "text/csv"
 
@@ -385,9 +427,50 @@ if "dataset" in st.session_state:
     )
 
 
-# =========================================================
-# Initial screen
-# =========================================================
+    # ========================================================
+    # DATASET INFORMATION
+    # ========================================================
+
+    st.divider()
+
+    st.subheader("ℹ️ Dataset Information")
+
+    info_col1, info_col2 = st.columns(2)
+
+    with info_col1:
+
+        st.markdown(
+            f"""
+            **Task / Domain:**  
+            {st.session_state["topic"]}
+
+            **Difficulty:**  
+            {difficulty}
+
+            **Examples Generated:**  
+            {total}
+            """
+        )
+
+    with info_col2:
+
+        st.markdown(
+            f"""
+            **Passed:**  
+            {passed}
+
+            **Pass Rate:**  
+            {pass_rate:.0f}%
+
+            **Average Score:**  
+            {avg_score:.1f}/10
+            """
+        )
+
+
+# ============================================================
+# INITIAL STATE
+# ============================================================
 
 else:
 
@@ -398,13 +481,31 @@ else:
 
     st.markdown(
         """
-        ### What this app does
+        ### 🚀 What this app does
 
-        1. 📝 Takes a task/domain description.
-        2. 🤖 Generates evaluation examples using Groq.
-        3. 🔍 Automatically evaluates each generated example.
-        4. 📊 Calculates scores and pass/fail results.
-        5. 📥 Exports the dataset as JSONL or CSV.
+        1. Converts your task description into evaluation examples.
+        2. Generates inputs and expected outputs with Groq.
+        3. Runs a second LLM-based quality evaluation.
+        4. Assigns quality scores and pass/fail results.
+        5. Displays evaluation statistics.
+        6. Provides detailed evaluation explanations.
+        7. Exports the final dataset as JSONL or CSV.
+
+        ### 🧠 Example
+
+        **Task / Domain:**
+
+        `Python programming question answering`
+
+        **Difficulty:**
+
+        `Hard`
+
+        **Examples:**
+
+        `10`
+
+        Click **Generate Evaluation Dataset** to create your evaluation dataset.
         """
     )
 
